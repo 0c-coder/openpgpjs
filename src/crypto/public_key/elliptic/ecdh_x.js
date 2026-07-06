@@ -11,6 +11,7 @@ import util from '../../../util.js';
 import computeHKDF from '../../hkdf.js';
 import { getCipherParams } from '../../cipher/index.js';
 import { b64ToUint8Array, uint8ArrayToB64 } from '../../../encoding/base64.js';
+import hardware from '../../hardware.js';
 
 const HKDF_INFO = {
   x25519: util.encodeUTF8('OpenPGP X25519'),
@@ -160,7 +161,14 @@ export async function encrypt(algo, data, recipientA) {
  * @async
  */
 export async function decrypt(algo, ephemeralPublicKey, wrappedKey, A, k) {
-  const sharedSecret = await recomputeSharedSecret(algo, ephemeralPublicKey, A, k);
+  // OnlyKey: device computes X25519(k, ephemeralPublicKey); HKDF + unwrap unchanged.
+  let sharedSecret;
+  if (hardware.ecdh) {
+    sharedSecret = await hardware.ecdh(algo, ephemeralPublicKey, { A });
+  }
+  if (!sharedSecret) {
+    sharedSecret = await recomputeSharedSecret(algo, ephemeralPublicKey, A, k);
+  }
   const hkdfInput = util.concatUint8Array([
     ephemeralPublicKey,
     A,

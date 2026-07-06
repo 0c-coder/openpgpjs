@@ -29,6 +29,7 @@ import util from '../../../util.js';
 import { b64ToUint8Array } from '../../../encoding/base64.js';
 import * as pkcs5 from '../../pkcs5.js';
 import { getCipherParams } from '../../cipher/index.js';
+import hardware from '../../hardware.js';
 import { generateEphemeralEncryptionMaterial as ecdhXGenerateEphemeralEncryptionMaterial, recomputeSharedSecret as ecdhXRecomputeSharedSecret } from './ecdh_x.js';
 
 /**
@@ -191,7 +192,15 @@ export async function decrypt(oid, kdfParams, V, C, Q, d, fingerprint) {
   const curve = new CurveWithOID(oid);
   checkPublicPointEnconding(curve, Q);
   checkPublicPointEnconding(curve, V);
-  const { sharedKey } = await genPrivateEphemeralKey(curve, V, Q, d);
+  // OnlyKey: device computes the ECDH shared secret from the ephemeral point V;
+  // the KDF + AES key-unwrap below is unchanged.
+  let sharedKey;
+  if (hardware.ecdh) {
+    sharedKey = await hardware.ecdh(enums.publicKey.ecdh, V, { oid, Q });
+  }
+  if (!sharedKey) {
+    ({ sharedKey } = await genPrivateEphemeralKey(curve, V, Q, d));
+  }
   const param = buildEcdhParam(enums.publicKey.ecdh, oid, kdfParams, fingerprint);
   const { keySize } = getCipherParams(kdfParams.cipher);
   let err;
