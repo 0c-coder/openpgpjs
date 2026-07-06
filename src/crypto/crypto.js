@@ -34,6 +34,7 @@ import util from '../util.js';
 import OID from '../type/oid.js';
 import { UnsupportedError } from '../packet/packet.js';
 import ECDHXSymmetricKey from '../type/ecdh_x_symkey.js';
+import hardware from './hardware.js';
 
 /**
  * Encrypts data using specified algorithm and public key parameters.
@@ -96,6 +97,12 @@ export async function publicKeyEncrypt(keyAlgo, symmetricAlgo, publicParams, dat
  * @async
  */
 export async function publicKeyDecrypt(algo, publicKeyParams, privateKeyParams, sessionKeyParams, fingerprint, randomPayload) {
+  // OnlyKey: RSA/Elgamal session-key decryption on the device (ECDH/X25519 are
+  // delegated deeper, at the shared-secret step in elliptic/ecdh*.js).
+  if (hardware.decryptor) {
+    const sessionKey = await hardware.decryptor(algo, sessionKeyParams, publicKeyParams, fingerprint);
+    if (sessionKey) return sessionKey;
+  }
   switch (algo) {
     case enums.publicKey.rsaEncryptSign:
     case enums.publicKey.rsaEncrypt: {

@@ -8,6 +8,7 @@ import { elliptic, rsa, dsa } from './public_key/index.js';
 import enums from '../enums.ts';
 import util from '../util.js';
 import { UnsupportedError } from '../packet/packet.js';
+import hardware from './hardware.js';
 
 /**
  * Parse signature in binary form to get the parameters.
@@ -142,6 +143,11 @@ export async function verify(algo, hashAlgo, signature, publicParams, data, hash
  * @async
  */
 export async function sign(algo, hashAlgo, publicKeyParams, privateKeyParams, data, hashed) {
+  // OnlyKey: delegate the private-key signature to the device when registered.
+  if (hardware.signer) {
+    const sigParams = await hardware.signer(algo, hashAlgo, hashed, publicKeyParams);
+    if (sigParams) return sigParams; // { s } | { r, s } | { RS } per algo; null => software
+  }
   if (!publicKeyParams || !privateKeyParams) {
     throw new Error('Missing key parameters');
   }
